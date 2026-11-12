@@ -100,7 +100,9 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 .barrow .msg{flex:1;min-width:0;font-size:12px;opacity:.75;line-height:1.4}
 #board .nudge{width:38px;padding:0;justify-content:center;font-family:var(--font-data);font-size:18px}
 #lockBtn{background:var(--board-ink);color:var(--board-bg);border-color:var(--board-ink);font-weight:700}
-#lockLayer{position:absolute;inset:0;touch-action:none}
+#board.locked #boardBar{z-index:2;bottom:70px}
+#board.locked .barrow{display:none}
+#lockLayer{position:absolute;inset:0;z-index:1;touch-action:none}
 #unlockBtn{position:absolute;right:calc(12px + env(safe-area-inset-right, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));
   background:var(--board-panel);overflow:hidden;font-size:13px;opacity:.9}
 #unlockBtn::before{content:"";position:absolute;left:0;top:0;bottom:0;width:0;background:var(--board-line)}
@@ -333,7 +335,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     counts().forEach(function(c){chip(code(c[0]),c[0],c[1]);});
   }
   function setLocked(on){
-    $('lockLayer').hidden=!on;$('boardBar').hidden=on;
+    $('lockLayer').hidden=!on;$('boardBar').hidden=false;$('board').classList.toggle('locked',on);
     $('boardScroll').style.overflow=on?'hidden':'auto';
   }
   $('enter').addEventListener('click',function(){
