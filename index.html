@@ -11,7 +11,7 @@ body{margin:0;font:14px system-ui,sans-serif}
 img{max-width:100%}
 [hidden]{display:none!important}
 
-/* 布局：单列工具页，按“选图 → 校准 → 开始”的顺序往下走；底板模式是一层固定的全屏暗色画布 */
+/* 布局：单列工具页，按“选图 → 选板 → 开始”的顺序往下走；底板模式是一层固定的全屏暗色画布 */
 :root{
   --bg:#EEF1F6; --surface:#FFFFFF; --ink:#1A2233; --muted:#5D6880; --line:#D5DBE6;
   --accent:#D92E63; --accent-ink:#FFFFFF; --ok:#1F8A55; --warn:#B25E00;
@@ -66,7 +66,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .check input{accent-color:var(--accent);width:18px;height:18px}
 #uploadOpts{display:flex;flex-direction:column;gap:10px}
 .inchrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#inch{font:inherit;font-family:var(--font-data);font-size:18px;width:5.5em;padding:8px 10px;border-radius:10px;
+#inch,#boardN{font:inherit;font-family:var(--font-data);font-size:18px;width:5.5em;padding:8px 10px;border-radius:10px;
   border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
 .calbox{overflow-x:auto;padding:6px 0}
 #calRow{flex:none;display:block}
@@ -83,7 +83,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 .notes strong{color:var(--ink)}
 
 /* 底板模式：固定全屏，永远暗色 */
-#board{position:fixed;inset:0;z-index:50;background:var(--board-bg);color:var(--board-ink);
+#board{position:fixed;inset:0;z-index:50;touch-action:pan-x pan-y;background:var(--board-bg);color:var(--board-ink);
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #boardScroll{position:absolute;inset:0;overflow:auto;display:flex;padding:28px 28px 120px;-webkit-overflow-scrolling:touch}
 #boardCanvas{margin:auto;flex:none;display:block}
@@ -97,7 +97,8 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 #board #chips button{font-family:var(--font-data)}
 #board .cnt{font-family:var(--font-data);opacity:.7;font-size:12px}
 .barrow{display:flex;gap:8px;align-items:center}
-.barrow .msg{flex:1;min-width:0;font-size:12px;opacity:.75}
+.barrow .msg{flex:1;min-width:0;font-size:12px;opacity:.75;line-height:1.4}
+#board .nudge{width:38px;padding:0;justify-content:center;font-family:var(--font-data);font-size:18px}
 #lockBtn{background:var(--board-ink);color:var(--board-bg);border-color:var(--board-ink);font-weight:700}
 #lockLayer{position:absolute;inset:0;touch-action:none}
 #unlockBtn{position:absolute;right:calc(12px + env(safe-area-inset-right, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));
@@ -125,8 +126,9 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     </div>
     <div id="uploadOpts" hidden>
       <label class="field">图案宽度：<span id="wideLabel">29 颗</span>
-        <input type="range" id="beadsWide" min="8" max="58" step="1" value="29">
+        <input type="range" id="beadsWide" min="8" max="104" step="1" value="29">
       </label>
+      <div class="row"><button type="button" id="fitBoard">宽度正好铺满一块板</button></div>
       <label class="field">最多用几种颜色：<span id="maxLabel">16 种</span>
         <input type="range" id="maxColors" min="3" max="40" step="1" value="16">
       </label>
@@ -137,27 +139,19 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
       <div><dt>图案大小</dt><dd id="fSize"></dd></div>
       <div><dt>实物尺寸</dt><dd id="fReal"></dd></div>
       <div><dt>豆子总数</dt><dd id="fTotal"></dd></div>
+      <div><dt>需要拼豆板</dt><dd id="fBoards"></dd></div>
       <div><dt>这块屏幕一次能显示</dt><dd id="fScreen"></dd></div>
     </dl>
   </section>
 
   <section class="step">
-    <h2><span class="n">步骤 2</span>校准尺寸</h2>
-    <p class="hint">填上这台设备的屏幕尺寸，圆点的间距就会按实物大小显示。不知道多少寸的话，搜一下手机型号就有。</p>
-    <div class="inchrow">
-      <input type="number" id="inch" inputmode="decimal" min="3" max="40" step="0.01" placeholder="如 6.7" aria-label="屏幕尺寸（英寸）">
-      <span>英寸</span>
+    <h2><span class="n">步骤 2</span>你的拼豆板</h2>
+    <p class="hint">选你手上那块板每边有多少格。图案上会用粗线标出每块板的边界，大图就按粗线一块一块拼。</p>
+    <div class="row" id="boards"></div>
+    <div class="inchrow" id="boardCustom" hidden>
+      <input type="number" id="boardN" inputmode="numeric" min="8" max="120" step="1" aria-label="每边格数">
+      <span>格（每边）</span>
     </div>
-    <div class="row" id="inchPicks"></div>
-    <h3>还差一点？用拼豆板精调</h3>
-    <p class="hint" id="calRowHint"></p>
-    <div class="calbox"><canvas id="calRow" aria-label="对齐圆点"></canvas></div>
-    <div class="calctl">
-      <button type="button" id="calMinus" aria-label="间距缩小一点">−</button>
-      <input type="range" id="cal" min="3" max="10" step="0.01" aria-label="每毫米像素数">
-      <button type="button" id="calPlus" aria-label="间距放大一点">+</button>
-    </div>
-    <div class="row"><span class="status" id="calStatus"></span></div>
   </section>
 
   <section class="step">
@@ -165,7 +159,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     <p class="hint">你买的是哪家的豆子？色号会跟着换。</p>
     <div class="row" id="brands"></div>
     <ul class="colors" id="colorList"></ul>
-    <p class="hint">色号对照数据来自开源项目 <a href="https://github.com/Zippland/perler-beads" target="_blank" rel="noopener">perler-beads</a>（Zippland，AGPL-3.0）。屏幕颜色和实物豆子会有色差，以色号为准。</p>
+    <p class="hint">色号对照数据来自开源项目 perler-beads（github.com/Zippland/perler-beads）（Zippland，AGPL-3.0）。屏幕颜色和实物豆子会有色差，以色号为准。</p>
   </section>
 
   <button type="button" class="primary" id="enter">进入底板模式</button>
@@ -179,11 +173,14 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 
 <div id="board" hidden>
   <div id="boardScroll"><canvas id="boardCanvas"></canvas></div>
+  <div id="calGuide" hidden style="position:absolute;top:12px;left:12px;right:12px;z-index:5;text-align:center;background:#263044;color:#fff;padding:12px;border-radius:10px;pointer-events:none">把板子放上来，双指捏合到圆点对准孔位</div>
   <div id="boardBar">
     <div id="chips"></div>
     <div class="barrow">
       <button type="button" id="exitBtn">退出</button>
-      <span class="msg" id="wakeMsg"></span>
+      <span class="msg"><span id="wakeMsg"></span><br>双指捏合或 − + 调大小</span>
+      <button type="button" class="nudge" id="bMinus" aria-label="圆点缩小一点">−</button>
+      <button type="button" class="nudge" id="bPlus" aria-label="圆点放大一点">+</button>
       <button type="button" id="lockBtn">锁定屏幕</button>
     </div>
   </div>
@@ -226,7 +223,9 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   var guess=coarse?(Math.min(screen.width,screen.height)<600?6.04:5.2):3.78;
   var stored=parseFloat(load('pd_pxmm'));
   var brand=parseInt(load('pd_brand'),10);if(!(brand>=0&&brand<BRANDS.length))brand=0;
-  var S={pxmm:stored>0?stored:guess,calibrated:stored>0,brand:brand,
+  var BOARDS=[52,78,104];
+  var bd=parseInt(load('pd_board'),10);if(!(bd>=8&&bd<=120))bd=52;
+  var S={pxmm:stored>0?stored:guess,calibrated:stored>0,brand:brand,board:bd,
          pat:fromRows(SAMPLES[0].rows),solo:-1,img:null,sample:0};
 
   function pitch(){return BEAD*S.pxmm;}
@@ -243,6 +242,10 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     var i;
     for(i=0;i<=p.cols;i++){c.strokeStyle=i%5===0?o.grid5:o.grid;c.beginPath();c.moveTo(i*pt,0);c.lineTo(i*pt,h);c.stroke();}
     for(i=0;i<=p.rows;i++){c.strokeStyle=i%5===0?o.grid5:o.grid;c.beginPath();c.moveTo(0,i*pt);c.lineTo(w,i*pt);c.stroke();}
+    if(o.board){c.strokeStyle=o.edge;c.lineWidth=2;
+      for(i=0;i<=p.cols;i+=o.board){c.beginPath();c.moveTo(i*pt,0);c.lineTo(i*pt,h);c.stroke();}
+      for(i=0;i<=p.rows;i+=o.board){c.beginPath();c.moveTo(0,i*pt);c.lineTo(w,i*pt);c.stroke();}
+      c.lineWidth=1;}
     var r=pt*0.4,peg=Math.max(1,pt*0.07);
     for(var y=0;y<p.rows;y++){for(var x=0;x<p.cols;x++){
       var idx=p.cells[y*p.cols+x],cx=(x+0.5)*pt,cy=(y+0.5)*pt;
@@ -261,11 +264,13 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     var p=S.pat,box=$('preview').parentNode;
     var avail=Math.max(160,box.clientWidth-24);
     var pt=Math.max(4,Math.min(22,Math.floor(avail/p.cols)));
-    draw($('preview'),p,pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1});
+    draw($('preview'),p,pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1,board:S.board,edge:cssVar('--accent')});
     var cs=counts(),total=0;cs.forEach(function(c){total+=c[1];});
     $('fSize').textContent=p.cols+' × '+p.rows+' 颗';
     $('fReal').textContent=(p.cols*BEAD/10).toFixed(1)+' × '+(p.rows*BEAD/10).toFixed(1)+' cm';
     $('fTotal').textContent=total+' 颗 · '+cs.length+' 色';
+    var nx=Math.ceil(p.cols/S.board),ny=Math.ceil(p.rows/S.board);
+    $('fBoards').textContent=nx*ny===1?'1 块就够':(nx+' × '+ny+' = '+nx*ny+' 块');
     $('fScreen').textContent=Math.floor(window.innerWidth/pitch())+' × '+Math.floor(window.innerHeight/pitch())+' 颗';
     var ul=$('colorList');ul.textContent='';
     cs.forEach(function(c){var li=document.createElement('li');
@@ -275,31 +280,14 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
       li.appendChild(d);li.appendChild(n);li.appendChild(k);ul.appendChild(li);});
     Array.prototype.forEach.call($('samples').children,function(b,i){b.setAttribute('aria-pressed',S.sample===i);});
     Array.prototype.forEach.call($('brands').children,function(b,i){b.setAttribute('aria-pressed',S.brand===i);});
-    renderCal();
-  }
-
-  function renderCal(){
-    var box=$('calRow').parentNode,pt=pitch();
-    var n=Math.max(5,Math.min(29,Math.floor((box.clientWidth||300)/pt)));
-    var cells=[];for(var i=0;i<n;i++)cells.push(0);
-    draw($('calRow'),{cols:n,rows:1,cells:cells},pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1,fill:cssVar('--accent')});
-    $('calRowHint').textContent='把透明拼豆板放在屏幕上，第一根柱子对准最左边的圆点，再点 − 或 +，直到第 '+n+' 根柱子也对准最右边的圆点。';
-    $('cal').value=S.pxmm;
-    var st=$('calStatus');
-    st.textContent='1 mm = '+S.pxmm.toFixed(2)+' 像素 · '+(S.calibrated?'已校准，下次打开会记住':'还没校准，现在是估计值');
-    st.className='status '+(S.calibrated?'ok':'todo');
-  }
-  function setCal(v){S.pxmm=Math.max(3,Math.min(10,v));S.calibrated=true;save('pd_pxmm',S.pxmm.toFixed(3));renderSetup();}
-  function setInch(v){
-    if(!(v>=3&&v<=40))return;
-    save('pd_inch',String(v));
-    setCal(Math.sqrt(screen.width*screen.width+screen.height*screen.height)/(v*25.4));
+    Array.prototype.forEach.call($('boards').children,function(b,i){var custom=!$('boardCustom').hidden;
+      b.setAttribute('aria-pressed',i<BOARDS.length?(!custom&&S.board===BOARDS[i]):custom);});
   }
 
   function quantize(){
     if(!S.img)return;
     var cols=parseInt($('beadsWide').value,10),maxC=parseInt($('maxColors').value,10);
-    var rows=Math.max(1,Math.min(80,Math.round(cols*S.img.naturalHeight/S.img.naturalWidth)));
+    var rows=Math.max(1,Math.min(140,Math.round(cols*S.img.naturalHeight/S.img.naturalWidth)));
     var cv=document.createElement('canvas');cv.width=cols;cv.height=rows;
     var c=cv.getContext('2d');c.imageSmoothingEnabled=true;c.drawImage(S.img,0,0,cols,rows);
     var d=c.getImageData(0,0,cols,rows).data,cells=[],drop=$('dropWhite').checked,cnt={};
@@ -328,7 +316,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
       .catch(function(){$('wakeMsg').textContent='没能开启常亮，请先把系统的自动锁屏时间调长';});
   }
   function renderBoard(){
-    draw($('boardCanvas'),S.pat,pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo});
+    draw($('boardCanvas'),S.pat,pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo,board:S.board,edge:'#FF6B97'});
     var box=$('chips');box.textContent='';
     function chip(label,idx,cnt){var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',S.solo===idx);
       if(idx>=0){var d=document.createElement('span');d.className='dot';d.style.background=PAL[idx].hex;b.appendChild(d);}
@@ -343,7 +331,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     $('boardScroll').style.overflow=on?'hidden':'auto';
   }
   $('enter').addEventListener('click',function(){
-    S.solo=-1;$('board').hidden=false;document.body.style.overflow='hidden';setLocked(false);renderBoard();askWake();
+    S.solo=-1;$('board').hidden=false;$('calGuide').hidden=S.calibrated;document.body.style.overflow='hidden';setLocked(false);renderBoard();askWake();
   });
   $('exitBtn').addEventListener('click',function(){
     $('board').hidden=true;document.body.style.overflow='';
@@ -351,6 +339,23 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     renderSetup();
   });
   $('lockBtn').addEventListener('click',function(){setLocked(true);});
+  /* 底板模式里不让浏览器整页缩放，双指捏合改为直接调整圆点大小（也就是校准值） */
+  var bs=$('boardScroll'),pinch=null;
+  function tdist(e){var a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
+  function sizeCanvas(){var cv=$('boardCanvas');cv.style.width=(S.pat.cols*pitch())+'px';cv.style.height=(S.pat.rows*pitch())+'px';}
+  function keepSize(){S.calibrated=true;$('calGuide').hidden=true;save('pd_pxmm',S.pxmm.toFixed(3));renderBoard();$('wakeMsg').textContent='大小已记住';}
+  bs.addEventListener('touchstart',function(e){if(e.touches.length===2)pinch={d:tdist(e)||1,px:S.pxmm};},{passive:true});
+  bs.addEventListener('touchmove',function(e){
+    if(!pinch||e.touches.length!==2)return;
+    if(e.cancelable)e.preventDefault();
+    S.pxmm=Math.max(3,Math.min(10,pinch.px*tdist(e)/pinch.d));sizeCanvas();
+  },{passive:false});
+  function endPinch(e){if(!pinch||e.touches.length>=2)return;pinch=null;keepSize();}
+  bs.addEventListener('touchend',endPinch);bs.addEventListener('touchcancel',endPinch);
+  ['gesturestart','gesturechange','gestureend'].forEach(function(ev){$('board').addEventListener(ev,function(e){e.preventDefault();});});
+  function nudge(d){S.pxmm=Math.max(3,Math.min(10,S.pxmm+d));keepSize();}
+  $('bMinus').addEventListener('click',function(){nudge(-0.01);});
+  $('bPlus').addEventListener('click',function(){nudge(0.01);});
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&!$('board').hidden)askWake();});
   var layer=$('lockLayer');
   ['touchstart','touchmove','wheel'].forEach(function(ev){layer.addEventListener(ev,function(e){
@@ -369,11 +374,16 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   BRANDS.forEach(function(n,i){var b=document.createElement('button');b.type='button';b.textContent=n;
     b.addEventListener('click',function(){S.brand=i;save('pd_brand',String(i));renderSetup();});
     $('brands').appendChild(b);});
-  [6.1,6.3,6.7,6.9,8.3,11,13].forEach(function(v){var b=document.createElement('button');b.type='button';b.textContent=v+' 寸';
-    b.addEventListener('click',function(){$('inch').value=v;setInch(v);});
-    $('inchPicks').appendChild(b);});
-  var savedInch=parseFloat(load('pd_inch'));if(savedInch>0)$('inch').value=savedInch;
-  $('inch').addEventListener('change',function(e){setInch(parseFloat(e.target.value));});
+  function setBoard(n){S.board=n;save('pd_board',String(n));renderSetup();}
+  BOARDS.forEach(function(n){var b=document.createElement('button');b.type='button';
+    b.textContent=n+' × '+n+' 格 · 约 '+(n*BEAD/10).toFixed(1)+' cm';
+    b.addEventListener('click',function(){$('boardCustom').hidden=true;setBoard(n);});$('boards').appendChild(b);});
+  var ob=document.createElement('button');ob.type='button';ob.textContent='其他规格';
+  ob.addEventListener('click',function(){$('boardCustom').hidden=false;$('boardN').value=S.board;renderSetup();});
+  $('boards').appendChild(ob);
+  $('boardN').addEventListener('change',function(e){var v=parseInt(e.target.value,10);if(v>=8&&v<=120)setBoard(v);});
+  if(BOARDS.indexOf(S.board)<0){$('boardCustom').hidden=false;$('boardN').value=S.board;}
+  $('fitBoard').addEventListener('click',function(){$('beadsWide').value=Math.min(104,S.board);quantize();});
   $('file').addEventListener('change',function(e){
     var f=e.target.files&&e.target.files[0];if(!f)return;
     var rd=new FileReader();
@@ -386,9 +396,6 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   $('beadsWide').addEventListener('input',quantize);
   $('maxColors').addEventListener('input',quantize);
   $('dropWhite').addEventListener('change',quantize);
-  $('cal').addEventListener('input',function(e){setCal(parseFloat(e.target.value));});
-  $('calMinus').addEventListener('click',function(){setCal(S.pxmm-0.01);});
-  $('calPlus').addEventListener('click',function(){setCal(S.pxmm+0.01);});
   window.addEventListener('resize',function(){if($('board').hidden)renderSetup();});
   if(window.matchMedia){var mq=matchMedia('(prefers-color-scheme: dark)');
     if(mq.addEventListener)mq.addEventListener('change',renderSetup);}
