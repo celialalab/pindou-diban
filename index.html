@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>拼豆底板</title>
+<style>
+html{color-scheme:light}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+/* 布局：单列工具页，按“选图 → 校准 → 开始”的顺序往下走；底板模式是一层固定的全屏暗色画布 */
+:root{
+  --bg:#EEF1F6; --surface:#FFFFFF; --ink:#1A2233; --muted:#5D6880; --line:#D5DBE6;
+  --accent:#D92E63; --accent-ink:#FFFFFF; --ok:#1F8A55; --warn:#B25E00;
+  --board-bg:#07090D; --board-ink:#E9EDF5; --board-line:#2A3140; --board-panel:#161B25;
+  --font-body:"PingFang SC","HarmonyOS Sans SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --font-data:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10141C; --surface:#1A202C; --ink:#E9EDF5; --muted:#97A1B5; --line:#2C3445;
+    --accent:#FF6B97; --accent-ink:#1A0A11; --ok:#5CD39A; --warn:#F0A64A; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10141C; --surface:#1A202C; --ink:#E9EDF5; --muted:#97A1B5; --line:#2C3445;
+  --accent:#FF6B97; --accent-ink:#1A0A11; --ok:#5CD39A; --warn:#F0A64A; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.6}
+.wrap{max-width:640px;margin:0 auto;padding-block:20px 40px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  display:flex;flex-direction:column;gap:16px}
+header.top{padding:18px 16px;border-radius:14px;color:var(--ink);
+  background:radial-gradient(circle at 6px 6px, var(--line) 2.2px, transparent 2.6px) 0 0/12px 12px, var(--surface)}
+header.top h1{margin:0;font-size:26px;letter-spacing:.04em;text-wrap:balance}
+header.top p{margin:6px 0 0;color:var(--muted);max-width:30em;background:var(--surface);display:inline}
+section.step{background:var(--surface);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.step h2{margin:0;font-size:16px;display:flex;align-items:baseline;gap:8px}
+.step h2 .n{font-family:var(--font-data);font-size:12px;color:var(--accent);letter-spacing:.08em}
+.step h3{margin:4px 0 0;font-size:14px}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.hint a{color:inherit}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,.filebtn{font:inherit;color:var(--ink);background:transparent;border:1.5px solid var(--line);border-radius:999px;
+  padding:7px 14px;cursor:pointer;min-height:38px;display:inline-flex;align-items:center;gap:6px}
+button:hover,.filebtn:hover{border-color:var(--muted)}
+button:focus-visible,.filebtn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700;
+  font-size:17px;padding:13px 20px;justify-content:center;width:100%;border-radius:14px}
+.filebtn input{position:absolute;opacity:0;width:1px;height:1px}
+.filebtn{position:relative}
+.preview{display:flex;justify-content:center;padding:12px;border:1.5px dashed var(--line);border-radius:10px;overflow-x:auto}
+.preview canvas{flex:none}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0}
+.facts div{border-top:1.5px solid var(--line);padding-top:6px}
+.facts dt{font-size:12px;color:var(--muted)}
+.facts dd{margin:0;font-family:var(--font-data);font-variant-numeric:tabular-nums;font-size:15px}
+label.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.check input{accent-color:var(--accent);width:18px;height:18px}
+#uploadOpts{display:flex;flex-direction:column;gap:10px}
+.inchrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#inch{font:inherit;font-family:var(--font-data);font-size:18px;width:5.5em;padding:8px 10px;border-radius:10px;
+  border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.calbox{overflow-x:auto;padding:6px 0}
+#calRow{flex:none;display:block}
+.calctl{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.calctl button{width:42px;justify-content:center;padding:0;font-family:var(--font-data);font-size:18px}
+.status{font-size:13px;font-family:var(--font-data)}
+.status.ok{color:var(--ok)} .status.todo{color:var(--warn)}
+ul.colors{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px 14px}
+ul.colors li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center;font-size:14px}
+ul.colors .code{font-family:var(--font-data)}
+.dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);display:inline-block;flex:none}
+ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;color:var(--muted)}
+.notes{margin:0;padding-left:1.2em;color:var(--muted);font-size:13px}
+.notes strong{color:var(--ink)}
+
+/* 底板模式：固定全屏，永远暗色 */
+#board{position:fixed;inset:0;z-index:50;background:var(--board-bg);color:var(--board-ink);
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#boardScroll{position:absolute;inset:0;overflow:auto;display:flex;padding:28px 28px 120px;-webkit-overflow-scrolling:touch}
+#boardCanvas{margin:auto;flex:none;display:block}
+#boardBar{position:absolute;left:0;right:0;bottom:0;background:var(--board-panel);border-top:1px solid var(--board-line);
+  padding:10px max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  display:flex;flex-direction:column;gap:8px}
+#chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+#board button{color:var(--board-ink);border-color:var(--board-line);background:transparent;flex:none}
+#board button[aria-pressed="true"]{border-color:var(--board-ink);color:var(--board-ink)}
+#board .dot{border-color:var(--board-line)}
+#board #chips button{font-family:var(--font-data)}
+#board .cnt{font-family:var(--font-data);opacity:.7;font-size:12px}
+.barrow{display:flex;gap:8px;align-items:center}
+.barrow .msg{flex:1;min-width:0;font-size:12px;opacity:.75}
+#lockBtn{background:var(--board-ink);color:var(--board-bg);border-color:var(--board-ink);font-weight:700}
+#lockLayer{position:absolute;inset:0;touch-action:none}
+#unlockBtn{position:absolute;right:calc(12px + env(safe-area-inset-right, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+  background:var(--board-panel);overflow:hidden;font-size:13px;opacity:.9}
+#unlockBtn::before{content:"";position:absolute;left:0;top:0;bottom:0;width:0;background:var(--board-line)}
+#unlockBtn.holding::before{width:100%;transition:width 1.5s linear}
+#unlockBtn span{position:relative}
+@media (prefers-reduced-motion: reduce){#unlockBtn.holding::before{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="setup">
+  <header class="top">
+    <h1>拼豆底板</h1>
+    <p>把手机或平板变成会发光的图纸：屏幕按 1:1 显示图案，透明拼豆板放上去，照着圆点摆豆子。目前按 2.6 mm 迷你豆显示。</p>
+  </header>
+
+  <section class="step">
+    <h2><span class="n">步骤 1</span>选一张图</h2>
+    <div class="row" id="samples"></div>
+    <div class="row">
+      <label class="filebtn">上传自己的图片<input type="file" id="file" accept="image/*"></label>
+      <span class="hint" id="fileName"></span>
+    </div>
+    <div id="uploadOpts" hidden>
+      <label class="field">图案宽度：<span id="wideLabel">29 颗</span>
+        <input type="range" id="beadsWide" min="8" max="58" step="1" value="29">
+      </label>
+      <label class="field">最多用几种颜色：<span id="maxLabel">16 种</span>
+        <input type="range" id="maxColors" min="3" max="40" step="1" value="16">
+      </label>
+      <label class="check"><input type="checkbox" id="dropWhite">把接近白色的背景去掉</label>
+    </div>
+    <div class="preview"><canvas id="preview" aria-label="图案预览"></canvas></div>
+    <dl class="facts">
+      <div><dt>图案大小</dt><dd id="fSize"></dd></div>
+      <div><dt>实物尺寸</dt><dd id="fReal"></dd></div>
+      <div><dt>豆子总数</dt><dd id="fTotal"></dd></div>
+      <div><dt>这块屏幕一次能显示</dt><dd id="fScreen"></dd></div>
+    </dl>
+  </section>
+
+  <section class="step">
+    <h2><span class="n">步骤 2</span>校准尺寸</h2>
+    <p class="hint">填上这台设备的屏幕尺寸，圆点的间距就会按实物大小显示。不知道多少寸的话，搜一下手机型号就有。</p>
+    <div class="inchrow">
+      <input type="number" id="inch" inputmode="decimal" min="3" max="40" step="0.01" placeholder="如 6.7" aria-label="屏幕尺寸（英寸）">
+      <span>英寸</span>
+    </div>
+    <div class="row" id="inchPicks"></div>
+    <h3>还差一点？用拼豆板精调</h3>
+    <p class="hint" id="calRowHint"></p>
+    <div class="calbox"><canvas id="calRow" aria-label="对齐圆点"></canvas></div>
+    <div class="calctl">
+      <button type="button" id="calMinus" aria-label="间距缩小一点">−</button>
+      <input type="range" id="cal" min="3" max="10" step="0.01" aria-label="每毫米像素数">
+      <button type="button" id="calPlus" aria-label="间距放大一点">+</button>
+    </div>
+    <div class="row"><span class="status" id="calStatus"></span></div>
+  </section>
+
+  <section class="step">
+    <h2>用色清单</h2>
+    <p class="hint">你买的是哪家的豆子？色号会跟着换。</p>
+    <div class="row" id="brands"></div>
+    <ul class="colors" id="colorList"></ul>
+    <p class="hint">色号对照数据来自开源项目 <a href="https://github.com/Zippland/perler-beads" target="_blank" rel="noopener">perler-beads</a>（Zippland，AGPL-3.0）。屏幕颜色和实物豆子会有色差，以色号为准。</p>
+  </section>
+
+  <button type="button" class="primary" id="enter">进入底板模式</button>
+
+  <ul class="notes">
+    <li><strong>亮度调到最高</strong>，圆点透过板子才看得清。</li>
+    <li>锁定后屏幕不响应误触，但系统手势（上滑回桌面、下拉通知）拦不住，摆的时候避开屏幕边缘。</li>
+    <li><strong>不要在屏幕上熨烫。</strong>摆完把板子平移到桌面再烫。</li>
+  </ul>
+</div>
+
+<div id="board" hidden>
+  <div id="boardScroll"><canvas id="boardCanvas"></canvas></div>
+  <div id="boardBar">
+    <div id="chips"></div>
+    <div class="barrow">
+      <button type="button" id="exitBtn">退出</button>
+      <span class="msg" id="wakeMsg"></span>
+      <button type="button" id="lockBtn">锁定屏幕</button>
+    </div>
+  </div>
+  <div id="lockLayer" hidden>
+    <button type="button" id="unlockBtn"><span>长按 1.5 秒解锁</span></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* 色号对照：十六进制色值 | MARD | COCO | 漫漫 | 盼盼 | 咪小窝。数据来自 github.com/Zippland/perler-beads（AGPL-3.0） */
+  var BRANDS=['MARD','COCO','漫漫','盼盼','咪小窝'];
+  var RAW=["#FAF4C8|A01|E02|E2|65|77","#FFFFD5|A02|E01|B1|2|2","#FEFF8B|A03|E05|B2|28|28","#FBED56|A04|E07|B3|3|3","#F4D738|A05|D03|B4|74|79","#FEAC4C|A06|D05|B5|29|29","#FE8B4C|A07|D08|B6|4|4","#FFDA45|A08|E08|B10|88|98","#FF995B|A09|D06|B11|90|97","#F77C31|A10|D07|B12|89|96","#FFDD99|A11|D01|E11|100|109","#FE9F72|A12|K09|A18|99|110","#FFC365|A13|D04|B13|131|116","#FD543D|A14|C05|B14|138|135","#FFF365|A15|E04|B15|150|150","#FFFF9F|A16|E03|IC04|216|216","#FFE36E|A17|E06|IC9|213|213","#FEBE7D|A18|D02|IC14|223|208","#FD7C72|A19|K10|IC15|218|218","#FFD568|A20|E09|Q6|242|242","#FFE395|A21|E10|R07|276|261","#F4F57D|A22|E11|R06|270|255","#E6C9B7|A23|E12|R08|274|259","#F7F8A2|A24|E13|G3|288|273","#FFD67D|A25|E14|G4|289|274","#FFC830|A26|E15|G5|290|275","#E6EE31|B01|F05|C1|48|48","#63F347|B02|F08|C2|33|33","#9EF780|B03|F04|C7|26|26","#5DE035|B04|F09|C3|66|78","#35E352|B05|F10|C4|39|39","#65E2A6|B06|G04|C9|11|11","#3DAF80|B07|G05|C10|44|44","#1C9C4F|B08|F11|C5|10|10","#27523A|B09|F16|C6|79|84","#95D3C2|B10|G03|C11|96|100","#5D722A|B11|F14|C12|97|99","#166F41|B12|F12|C13|106|111","#CAEB7B|B13|F02|C14|128|119","#ADE946|B14|F06|C15|129|117","#2E5132|B15|F15|C16|130|122","#C5ED9C|B16|F03|C17|141|133","#9BB13A|B17|F13|C18|142|141","#E6EE49|B18|F07|C19|147|147","#24B88C|B19|G06|DH15|191|174","#C2F0CC|B20|G02|DH10|192|175","#156A6B|B21|G07|DH2|207|194","#0B3C43|B22|G08|DH7|206|193","#303A21|B23|F17|DH12|205|192","#EEFCA5|B24|F01|IC5|222|207","#4E846D|B25|F18|Q13|240|240","#8D7A35|B26|F19|Q7|248|248","#CCE1AF|B27|F20|R10|262|262","#9EE5B9|B28|F21|R11|269|254","#C5E254|B29|F22|R09|268|253","#E2FCB1|B30|F23|G6|285|270","#B0E792|B31|F24|G7|286|271","#9CAB5A|B32|F25|G12|287|272","#E8FFE7|C01|G01|C8|64|76","#A9F9FC|C02|H03|D1|30|30","#A0E2FB|C03|H04|D2|63|75","#41CCFF|C04|H05|D3|77|82","#01ACEB|C05|H07|D7|34|34","#50AAF0|C06|H08|D4|25|25","#3677D2|C07|H13|D8|9|9","#0F54C0|C08|H14|D9|52|71","#324BCA|C09|H16|N5|42|42","#3EBCE2|C10|H09|D25|121|130","#28DDDE|C11|H10|D28|122|113","#1C334D|C12|H23|D26|120|120","#CDE8FF|C13|H01|D30|140|142","#D5FDFF|C14|H02|D29|139|136","#22C4C6|C15|H11|D31|143|132","#1557A8|C16|H18|D32|149|149","#04D1F6|C17|H19|D36|163|156","#1D3344|C18|H24|DH6|196|196","#1887A2|C19|H12|DH9|202|202","#176DAF|C20|H17|DH14|197|197","#BEDDFF|C21|H06|IC3|212|212","#67B4BE|C22|H25|Q11|239|239","#C8E2FF|C23|H26|R13|263|263","#7CC4FF|C24|H27|R14|267|252","#A9E5E5|C25|H28|R12|271|256","#3CAED8|C26|H29|R15|265|250","#D3DFFA|C27|H30|G13|279|264","#BBCFED|C28|H31|G14|280|265","#34488E|C29|H32|G15|281|266","#AEB4F2|D01|J07|D5|46|46","#858EDD|D02|J08|D6|36|36","#2F54AF|D03|H15|D10|8|8","#182A84|D04|H20|D11|75|80","#B843C5|D05|J12|D13|32|32","#AC7BDE|D06|J11|D14|27|27","#8854B3|D07|J15|D12|7|7","#E2D3FF|D08|J03|D16|94|89","#D5B9F8|D09|J04|D17|93|90","#361851|D10|J19|D15|92|91","#B9BAE1|D11|J06|D19|105|104","#DE9AD4|D12|J10|D20|104|105","#B90095|D13|J14|D21|103|106","#8B279B|D14|J16|D22|102|107","#2F1F90|D15|H22|D18|101|108","#E3E1EE|D16|J01|D23|118|126","#C4D4F6|D17|J05|D24|119|128","#A45EC7|D18|J13|D27|124|125","#D8C3D7|D19|J09|D33|153|153","#9C32B2|D20|J17|D34|161|155","#9A009B|D21|J18|D35|162|158","#333A95|D22|H21|DH1|198|198","#EBDAFC|D23|J02|IC8|217|217","#7786E5|D24|J20|Q14|244|244","#494FC7|D25|J21|Q15|249|234","#DFC2F8|D26|J22|R01|273|258","#FDD3CC|E01|K03|E1|18|18","#FEC0DF|E02|K15|A7|38|38","#FFB7E7|E03|K17|A8|62|74","#E8649E|E04|K21|A9|6|6","#F551A2|E05|K19|A10|40|40","#F13D74|E06|K22|A11|20|20","#C63478|E07|K25|A12|41|41","#FFDBE9|E08|K12|A13|84|103","#E970CC|E09|K18|A14|98|95","#D33793|E10|K23|A16|83|94","#FCDDD2|E11|K02|A19|125|131","#F78FC3|E12|K16|A20|126|112","#B5006D|E13|K24|A21|127|124","#FFD1BA|E14|K05|E21|137|140","#F8C7C9|E15|K04|A23|135|139","#FFF3EB|E16|K01|IC2|221|206","#FFE2EA|E17|K11|IC7|220|205","#FFC7DB|E18|K13|IC13|210|210","#FEBAD5|E19|K14|IC12|215|215","#D8C7D1|E20|K26|Q1|241|241","#BD9DA1|E21|K27|Q2|253|238","#B785A1|E22|K28|Q4|252|237","#937A8D|E23|K29|Q3|250|235","#E1BCE8|E24|K30|G8|282|267","#FD957B|F01|K08|A1|35|35","#FC3D46|F02|C02|A2|31|31","#F74941|F03|C03|A3|53|72","#FC283C|F04|C06|A4|54|73","#E7002F|F05|C07|A5|5|5","#943630|F06|Z21|E9|16|16","#971937|F07|C10|A6|47|47","#BC0028|F08|C09|A17|81|92","#E2677A|F09|K20|A15|82|93","#8A4526|F10|Z20|E15|116|115","#5A2121|F11|Z23|E16|117|129","#FD4E6A|F12|C01|A22|136|134","#F35744|F13|C04|A24|148|148","#FFA9AD|F14|K07|A25|154|154","#D30022|F15|C08|DH8|204|191","#FEC2A6|F16|K06|IC10|211|211","#E69C79|F17|K31|Q9|245|245","#D37C46|F18|K32|Q10|246|246","#C1444A|F19|K33|Q05|243|243","#CD9391|F20|K34|R04|275|260","#F7B4C6|F21|K35|R03|266|251","#FDC0D0|F22|K36|R02|272|257","#F67E66|F23|K37|R05|264|249","#E698AA|F24|K38|G9|283|268","#E54B4F|F25|K39|G10|284|269","#FFE2CE|G01|Z02|E3|76|81","#FFC4AA|G02|Z05|E4|49|49","#F4C3A5|G03|Z06|E5|80|85","#E1B383|G04|Z08|E6|19|19","#EDB045|G05|Z10|B7|43|43","#E99C17|G06|Z11|B8|50|50","#9D5B3E|G07|Z18|E7|17|17","#753832|G08|Z22|E8|12|12","#E6B483|G09|Z09|E10|91|102","#D98C39|G10|Z15|B9|87|101","#E0C593|G11|Z07|E12|112|118","#FFC890|G12|Z13|E13|113|127","#B7714A|G13|Z14|E17|115|114","#8D614C|G14|Z17|E14|114|123","#FCF9E0|G15|Z03|E19|133|143","#F2D9BA|G16|Z04|E20|134|138","#78524B|G17|Z16|E22|144|137","#FFE4CC|G18|Z01|DH5|203|203","#E07935|G19|Z12|DH3|208|195","#A94023|G20|Z19|DH13|199|199","#B88558|G21|Z24|Q8|247|247","#FDFBFF|H01|A02|F1|15|15","#FEFFFF|H02|A01|F2|1|1","#B6B1BA|H03|B03|F3|13|13","#89858C|H04|B05|F4|78|83","#48464E|H05|B06|F5|45|45","#2F2B2F|H06|B07|F6|51|70","#000000|H07|B09|F7|14|14","#E7D6DB|H08|A09|F8|85|86","#EDEDED|H09|A08|F10|95|87","#EEE9EA|H10|A10|F9|86|88","#CECDD5|H11|B01|F11|123|121","#FFF5ED|H12|A04|E18|132|144","#F5ECD2|H13|A06|E23|145|146","#CFD7D3|H14|B02|F12|146|145","#98A6A8|H15|B04|DH4|201|201","#1D1414|H16|B08|DH11|200|200","#F1EDED|H17|A07|IC6|214|214","#FFFDF0|H18|A03|IC1|219|204","#F6EFE2|H19|A05|IC11|209|209","#949FA3|H20|B10|Q12|251|236","#FFFBE1|H21|A11|G1|291|276","#CACAD4|H22|A12|G2|277|277","#9A9D94|H23|B11|G11|278|278","#BCC6B8|M01|Y01|YX11|168|168","#8AA386|M02|Y02|YX12|172|172","#697D80|M03|Y03|YX2|166|166","#E3D2BC|M04|Y04|YX15|167|167","#D0CCAA|M05|Y05|YX6|174|159","#B0A782|M06|Y06|YX1|169|169","#B4A497|M07|Y07|YX13|171|171","#B38281|M08|Y08|YX14|177|162","#A58767|M09|Y09|YX10|170|170","#C5B2BC|M10|Y10|YX9|164|164","#9F7594|M11|Y11|YX4|176|161","#644749|M12|Y12|YX5|173|173","#D19066|M13|Y13|YX8|175|160","#C77362|M14|Y14|YX3|165|165","#757D78|M15|Y15|YX7|178|163"];
+  var PAL=RAW.map(function(s){var a=s.split('|');return {hex:a[0],codes:a.slice(1)};});
+  var RGB=PAL.map(function(p){var h=p.hex;return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)];});
+  function dist(r,g,b,k){var dr=r-RGB[k][0],dg=g-RGB[k][1],db=b-RGB[k][2];return 2*dr*dr+4*dg*dg+3*db*db;}
+  function nearest(r,g,b,among){var best=-1,bd=1e12;
+    if(among){for(var i=0;i<among.length;i++){var d=dist(r,g,b,among[i]);if(d<bd){bd=d;best=among[i];}}}
+    else{for(var k=0;k<RGB.length;k++){var d2=dist(r,g,b,k);if(d2<bd){bd=d2;best=k;}}}
+    return best;}
+  function nearHex(h){return nearest(parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16));}
+  var KEY={K:nearHex('#1E1E24'),W:nearHex('#F7F7F5'),R:nearHex('#E0332E'),P:nearHex('#F78FB3'),O:nearHex('#F28A2E'),Y:nearHex('#F6D32D'),G:nearHex('#2FA35A')};
+  var SAMPLES=[
+    {name:'爱心',rows:['..RR...RR..','.RRRR.RRRR.','RRWRRRRRRRR','RRWRRRRRRRR','RRRRRRRRRRR','.RRRRRRRRR.','..RRRRRRR..','...RRRRR...','....RRR....','.....R.....']},
+    {name:'草莓',rows:['...G..G...','..GGGGGG..','.RRGGGGRR.','RRRRGGRRRR','RYRRRRRYRR','RRRRYRRRRR','RRYRRRRRYR','.RRRRYRRR.','.RRYRRRRR.','..RRRRYR..','...RRRR...','....RR....']},
+    {name:'橘猫',rows:['.K........K.','KOK......KOK','KOOKKKKKKOOK','KOOOOOOOOOOK','KOOOOOOOOOOK','KOKKOOOOKKOK','KOOOOPPOOOOK','KOOOKOOKOOOK','.KOOOOOOOOK.','..KKOOOOKK..','....KKKK....']}
+  ];
+  function fromRows(rows){
+    var cols=0;rows.forEach(function(r){cols=Math.max(cols,r.length);});
+    var cells=[];
+    rows.forEach(function(r){for(var x=0;x<cols;x++){var ch=r.charAt(x);cells.push(KEY.hasOwnProperty(ch)?KEY[ch]:-1);}});
+    return {cols:cols,rows:rows.length,cells:cells};
+  }
+  var $=function(id){return document.getElementById(id);};
+  function load(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function save(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+  var BEAD=2.6;
+  var coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
+  var guess=coarse?(Math.min(screen.width,screen.height)<600?6.04:5.2):3.78;
+  var stored=parseFloat(load('pd_pxmm'));
+  var brand=parseInt(load('pd_brand'),10);if(!(brand>=0&&brand<BRANDS.length))brand=0;
+  var S={pxmm:stored>0?stored:guess,calibrated:stored>0,brand:brand,
+         pat:fromRows(SAMPLES[0].rows),solo:-1,img:null,sample:0};
+
+  function pitch(){return BEAD*S.pxmm;}
+  function code(i){var c=PAL[i].codes[S.brand];return (!c||c==='-')?'无对应':c;}
+  function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+  function draw(cv,p,pt,o){
+    var w=p.cols*pt,h=p.rows*pt;
+    var s=Math.min(window.devicePixelRatio||1,Math.sqrt(12e6/(w*h)));
+    cv.width=Math.max(1,Math.round(w*s));cv.height=Math.max(1,Math.round(h*s));
+    cv.style.width=w+'px';cv.style.height=h+'px';
+    var c=cv.getContext('2d');c.setTransform(s,0,0,s,0,0);c.clearRect(0,0,w,h);
+    c.lineWidth=1;
+    var i;
+    for(i=0;i<=p.cols;i++){c.strokeStyle=i%5===0?o.grid5:o.grid;c.beginPath();c.moveTo(i*pt,0);c.lineTo(i*pt,h);c.stroke();}
+    for(i=0;i<=p.rows;i++){c.strokeStyle=i%5===0?o.grid5:o.grid;c.beginPath();c.moveTo(0,i*pt);c.lineTo(w,i*pt);c.stroke();}
+    var r=pt*0.4,peg=Math.max(1,pt*0.07);
+    for(var y=0;y<p.rows;y++){for(var x=0;x<p.cols;x++){
+      var idx=p.cells[y*p.cols+x],cx=(x+0.5)*pt,cy=(y+0.5)*pt;
+      if(idx<0){c.globalAlpha=1;c.fillStyle=o.grid5;c.beginPath();c.arc(cx,cy,peg,0,6.2832);c.fill();continue;}
+      c.globalAlpha=(o.solo>=0&&idx!==o.solo)?0.1:1;
+      c.fillStyle=o.fill||PAL[idx].hex;c.beginPath();c.arc(cx,cy,r,0,6.2832);c.fill();
+      c.strokeStyle=o.ring;c.stroke();
+    }}
+    c.globalAlpha=1;
+  }
+
+  function counts(){var m={};S.pat.cells.forEach(function(i){if(i>=0)m[i]=(m[i]||0)+1;});
+    return Object.keys(m).map(function(k){return [parseInt(k,10),m[k]];}).sort(function(a,b){return b[1]-a[1];});}
+
+  function renderSetup(){
+    var p=S.pat,box=$('preview').parentNode;
+    var avail=Math.max(160,box.clientWidth-24);
+    var pt=Math.max(4,Math.min(22,Math.floor(avail/p.cols)));
+    draw($('preview'),p,pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1});
+    var cs=counts(),total=0;cs.forEach(function(c){total+=c[1];});
+    $('fSize').textContent=p.cols+' × '+p.rows+' 颗';
+    $('fReal').textContent=(p.cols*BEAD/10).toFixed(1)+' × '+(p.rows*BEAD/10).toFixed(1)+' cm';
+    $('fTotal').textContent=total+' 颗 · '+cs.length+' 色';
+    $('fScreen').textContent=Math.floor(window.innerWidth/pitch())+' × '+Math.floor(window.innerHeight/pitch())+' 颗';
+    var ul=$('colorList');ul.textContent='';
+    cs.forEach(function(c){var li=document.createElement('li');
+      var d=document.createElement('span');d.className='dot';d.style.background=PAL[c[0]].hex;
+      var n=document.createElement('span');n.className='code';n.textContent=code(c[0]);
+      var k=document.createElement('span');k.className='cnt';k.textContent=c[1]+' 颗';
+      li.appendChild(d);li.appendChild(n);li.appendChild(k);ul.appendChild(li);});
+    Array.prototype.forEach.call($('samples').children,function(b,i){b.setAttribute('aria-pressed',S.sample===i);});
+    Array.prototype.forEach.call($('brands').children,function(b,i){b.setAttribute('aria-pressed',S.brand===i);});
+    renderCal();
+  }
+
+  function renderCal(){
+    var box=$('calRow').parentNode,pt=pitch();
+    var n=Math.max(5,Math.min(29,Math.floor((box.clientWidth||300)/pt)));
+    var cells=[];for(var i=0;i<n;i++)cells.push(0);
+    draw($('calRow'),{cols:n,rows:1,cells:cells},pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1,fill:cssVar('--accent')});
+    $('calRowHint').textContent='把透明拼豆板放在屏幕上，第一根柱子对准最左边的圆点，再点 − 或 +，直到第 '+n+' 根柱子也对准最右边的圆点。';
+    $('cal').value=S.pxmm;
+    var st=$('calStatus');
+    st.textContent='1 mm = '+S.pxmm.toFixed(2)+' 像素 · '+(S.calibrated?'已校准，下次打开会记住':'还没校准，现在是估计值');
+    st.className='status '+(S.calibrated?'ok':'todo');
+  }
+  function setCal(v){S.pxmm=Math.max(3,Math.min(10,v));S.calibrated=true;save('pd_pxmm',S.pxmm.toFixed(3));renderSetup();}
+  function setInch(v){
+    if(!(v>=3&&v<=40))return;
+    save('pd_inch',String(v));
+    setCal(Math.sqrt(screen.width*screen.width+screen.height*screen.height)/(v*25.4));
+  }
+
+  function quantize(){
+    if(!S.img)return;
+    var cols=parseInt($('beadsWide').value,10),maxC=parseInt($('maxColors').value,10);
+    var rows=Math.max(1,Math.min(80,Math.round(cols*S.img.naturalHeight/S.img.naturalWidth)));
+    var cv=document.createElement('canvas');cv.width=cols;cv.height=rows;
+    var c=cv.getContext('2d');c.imageSmoothingEnabled=true;c.drawImage(S.img,0,0,cols,rows);
+    var d=c.getImageData(0,0,cols,rows).data,cells=[],drop=$('dropWhite').checked,cnt={};
+    for(var i=0;i<d.length;i+=4){
+      var r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];
+      if(a<128||(drop&&r>236&&g>236&&b>236)){cells.push(-1);continue;}
+      var k=nearest(r,g,b);cells.push(k);cnt[k]=(cnt[k]||0)+1;
+    }
+    /* 颜色太多时，把用得最少的颜色并进最接近的常用色 */
+    var used=Object.keys(cnt).map(Number).sort(function(a,b){return cnt[b]-cnt[a];});
+    if(used.length>maxC){
+      var keep=used.slice(0,maxC),map={};
+      used.slice(maxC).forEach(function(k){map[k]=nearest(RGB[k][0],RGB[k][1],RGB[k][2],keep);});
+      cells=cells.map(function(k){return (k>=0&&map.hasOwnProperty(k))?map[k]:k;});
+    }
+    S.pat={cols:cols,rows:rows,cells:cells};S.sample=-1;S.solo=-1;
+    $('wideLabel').textContent=cols+' 颗';$('maxLabel').textContent=maxC+' 种';
+    renderSetup();
+  }
+
+  /* 底板模式 */
+  var wake=null;
+  function askWake(){
+    if(!('wakeLock' in navigator)){$('wakeMsg').textContent='这台设备不支持保持常亮，请先把系统的自动锁屏时间调长';return;}
+    navigator.wakeLock.request('screen').then(function(w){wake=w;$('wakeMsg').textContent='屏幕会保持常亮';})
+      .catch(function(){$('wakeMsg').textContent='没能开启常亮，请先把系统的自动锁屏时间调长';});
+  }
+  function renderBoard(){
+    draw($('boardCanvas'),S.pat,pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo});
+    var box=$('chips');box.textContent='';
+    function chip(label,idx,cnt){var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',S.solo===idx);
+      if(idx>=0){var d=document.createElement('span');d.className='dot';d.style.background=PAL[idx].hex;b.appendChild(d);}
+      b.appendChild(document.createTextNode(label));
+      if(cnt){var k=document.createElement('span');k.className='cnt';k.textContent=cnt;b.appendChild(k);}
+      b.addEventListener('click',function(){S.solo=idx;renderBoard();});box.appendChild(b);}
+    chip('全部颜色',-1,'');
+    counts().forEach(function(c){chip(code(c[0]),c[0],c[1]);});
+  }
+  function setLocked(on){
+    $('lockLayer').hidden=!on;$('boardBar').hidden=on;
+    $('boardScroll').style.overflow=on?'hidden':'auto';
+  }
+  $('enter').addEventListener('click',function(){
+    S.solo=-1;$('board').hidden=false;document.body.style.overflow='hidden';setLocked(false);renderBoard();askWake();
+  });
+  $('exitBtn').addEventListener('click',function(){
+    $('board').hidden=true;document.body.style.overflow='';
+    if(wake){try{wake.release();}catch(e){}wake=null;}
+    renderSetup();
+  });
+  $('lockBtn').addEventListener('click',function(){setLocked(true);});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&!$('board').hidden)askWake();});
+  var layer=$('lockLayer');
+  ['touchstart','touchmove','wheel'].forEach(function(ev){layer.addEventListener(ev,function(e){
+    if(e.target.closest&&e.target.closest('#unlockBtn')&&ev==='touchstart')return;e.preventDefault();},{passive:false});});
+  layer.addEventListener('contextmenu',function(e){e.preventDefault();});
+  var ub=$('unlockBtn'),timer=null;
+  function cancelHold(){clearTimeout(timer);timer=null;ub.classList.remove('holding');}
+  ub.addEventListener('pointerdown',function(){ub.classList.add('holding');timer=setTimeout(function(){cancelHold();setLocked(false);},1500);});
+  ['pointerup','pointerleave','pointercancel'].forEach(function(ev){ub.addEventListener(ev,cancelHold);});
+
+  /* 设置页事件 */
+  SAMPLES.forEach(function(s,i){var b=document.createElement('button');b.type='button';b.textContent=s.name;
+    b.addEventListener('click',function(){S.pat=fromRows(s.rows);S.sample=i;S.solo=-1;
+      $('uploadOpts').hidden=true;$('fileName').textContent='';renderSetup();});
+    $('samples').appendChild(b);});
+  BRANDS.forEach(function(n,i){var b=document.createElement('button');b.type='button';b.textContent=n;
+    b.addEventListener('click',function(){S.brand=i;save('pd_brand',String(i));renderSetup();});
+    $('brands').appendChild(b);});
+  [6.1,6.3,6.7,6.9,8.3,11,13].forEach(function(v){var b=document.createElement('button');b.type='button';b.textContent=v+' 寸';
+    b.addEventListener('click',function(){$('inch').value=v;setInch(v);});
+    $('inchPicks').appendChild(b);});
+  var savedInch=parseFloat(load('pd_inch'));if(savedInch>0)$('inch').value=savedInch;
+  $('inch').addEventListener('change',function(e){setInch(parseFloat(e.target.value));});
+  $('file').addEventListener('change',function(e){
+    var f=e.target.files&&e.target.files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(){var im=new Image();
+      im.onload=function(){S.img=im;$('uploadOpts').hidden=false;$('fileName').textContent=f.name;quantize();};
+      im.onerror=function(){$('fileName').textContent='这张图片打不开，换一张 JPG 或 PNG 试试';};
+      im.src=rd.result;};
+    rd.readAsDataURL(f);
+  });
+  $('beadsWide').addEventListener('input',quantize);
+  $('maxColors').addEventListener('input',quantize);
+  $('dropWhite').addEventListener('change',quantize);
+  $('cal').addEventListener('input',function(e){setCal(parseFloat(e.target.value));});
+  $('calMinus').addEventListener('click',function(){setCal(S.pxmm-0.01);});
+  $('calPlus').addEventListener('click',function(){setCal(S.pxmm+0.01);});
+  window.addEventListener('resize',function(){if($('board').hidden)renderSetup();});
+  if(window.matchMedia){var mq=matchMedia('(prefers-color-scheme: dark)');
+    if(mq.addEventListener)mq.addEventListener('change',renderSetup);}
+  new MutationObserver(renderSetup).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+  renderSetup();
+})();
+</script>
+</body>
+</html>
