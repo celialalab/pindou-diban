@@ -234,7 +234,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 
   function draw(cv,p,pt,o){
     var w=p.cols*pt,h=p.rows*pt;
-    var s=Math.min(window.devicePixelRatio||1,Math.sqrt(12e6/(w*h)));
+    var s=Math.min(window.devicePixelRatio||1,Math.sqrt(4e6/(w*h)),4096/w,4096/h);
     cv.width=Math.max(1,Math.round(w*s));cv.height=Math.max(1,Math.round(h*s));
     cv.style.width=w+'px';cv.style.height=h+'px';
     var c=cv.getContext('2d');c.setTransform(s,0,0,s,0,0);c.clearRect(0,0,w,h);
@@ -315,8 +315,14 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     navigator.wakeLock.request('screen').then(function(w){wake=w;$('wakeMsg').textContent='屏幕会保持常亮';})
       .catch(function(){$('wakeMsg').textContent='没能开启常亮，请先把系统的自动锁屏时间调长';});
   }
+  function boardPattern(){
+    var n=S.board, cells=new Array(n*n).fill(-1);
+    for(var y=0;y<Math.min(n,S.pat.rows);y++)
+      for(var x=0;x<Math.min(n,S.pat.cols);x++) cells[y*n+x]=S.pat.cells[y*S.pat.cols+x];
+    return {cols:n,rows:n,cells:cells};
+  }
   function renderBoard(){
-    draw($('boardCanvas'),S.pat,pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo,board:S.board,edge:'#FF6B97'});
+    draw($('boardCanvas'),boardPattern(),pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo,board:S.board,edge:'#FF6B97'});
     var box=$('chips');box.textContent='';
     function chip(label,idx,cnt){var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',S.solo===idx);
       if(idx>=0){var d=document.createElement('span');d.className='dot';d.style.background=PAL[idx].hex;b.appendChild(d);}
@@ -331,6 +337,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     $('boardScroll').style.overflow=on?'hidden':'auto';
   }
   $('enter').addEventListener('click',function(){
+    if(S.pat.cols>S.board||S.pat.rows>S.board){alert('图案超出所选板子，请选择更大的板子或调整图案大小。');return;}
     S.solo=-1;$('board').hidden=false;$('calGuide').hidden=S.calibrated;document.body.style.overflow='hidden';setLocked(false);renderBoard();askWake();
   });
   $('exitBtn').addEventListener('click',function(){
@@ -342,7 +349,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   /* 底板模式里不让浏览器整页缩放，双指捏合改为直接调整圆点大小（也就是校准值） */
   var bs=$('boardScroll'),pinch=null;
   function tdist(e){var a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
-  function sizeCanvas(){var cv=$('boardCanvas');cv.style.width=(S.pat.cols*pitch())+'px';cv.style.height=(S.pat.rows*pitch())+'px';}
+  function sizeCanvas(){var cv=$('boardCanvas');cv.style.width=(S.board*pitch())+'px';cv.style.height=(S.board*pitch())+'px';}
   function keepSize(){S.calibrated=true;$('calGuide').hidden=true;save('pd_pxmm',S.pxmm.toFixed(3));renderBoard();$('wakeMsg').textContent='大小已记住';}
   bs.addEventListener('touchstart',function(e){if(e.touches.length===2)pinch={d:tdist(e)||1,px:S.pxmm};},{passive:true});
   bs.addEventListener('touchmove',function(e){
