@@ -348,12 +348,12 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   bs.addEventListener('touchmove',function(e){
     if(!pinch||e.touches.length!==2)return;
     if(e.cancelable)e.preventDefault();
-    S.pxmm=Math.max(3,Math.min(10,pinch.px*tdist(e)/pinch.d));sizeCanvas();
+    S.pxmm=Math.max(3,Math.min(30,pinch.px*tdist(e)/pinch.d));sizeCanvas();
   },{passive:false});
   function endPinch(e){if(!pinch||e.touches.length>=2)return;pinch=null;keepSize();}
   bs.addEventListener('touchend',endPinch);bs.addEventListener('touchcancel',endPinch);
   ['gesturestart','gesturechange','gestureend'].forEach(function(ev){$('board').addEventListener(ev,function(e){e.preventDefault();});});
-  function nudge(d){S.pxmm=Math.max(3,Math.min(10,S.pxmm+d));keepSize();}
+  function nudge(d){S.pxmm=Math.max(3,Math.min(30,S.pxmm+d));keepSize();}
   $('bMinus').addEventListener('click',function(){nudge(-0.01);});
   $('bPlus').addEventListener('click',function(){nudge(0.01);});
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&!$('board').hidden)askWake();});
