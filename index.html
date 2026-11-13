@@ -87,6 +87,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #boardScroll{position:absolute;inset:0;overflow:auto;display:flex;padding:28px 28px 120px;touch-action:none;-webkit-overflow-scrolling:auto}
 #boardCanvas{margin:auto;flex:none;display:block}
+#axes{position:absolute;inset:0;z-index:3;pointer-events:none}
 #boardBar{position:absolute;left:0;right:0;bottom:0;background:var(--board-panel);border-top:1px solid var(--board-line);
   padding:10px max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
   display:flex;flex-direction:column;gap:8px}
@@ -130,30 +131,18 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
       <label class="field">图案宽度：<span id="wideLabel">29 颗</span>
         <input type="range" id="beadsWide" min="8" max="104" step="1" value="29">
       </label>
-      <div class="row"><button type="button" id="fitBoard">宽度正好铺满一块板</button></div>
       <label class="field">最多用几种颜色：<span id="maxLabel">16 种</span>
         <input type="range" id="maxColors" min="3" max="40" step="1" value="16">
       </label>
       <label class="check"><input type="checkbox" id="dropWhite">把接近白色的背景去掉</label>
     </div>
     <div class="preview"><canvas id="preview" aria-label="图案预览"></canvas></div>
+    <p id="fSize" style="font-size:17px;font-weight:700;margin:0"></p>
+    <p class="hint">请确认你的拼豆板每边格数不少于图案的格数。</p>
     <dl class="facts">
-      <div><dt>图案大小</dt><dd id="fSize"></dd></div>
-      <div><dt>实物尺寸</dt><dd id="fReal"></dd></div>
       <div><dt>豆子总数</dt><dd id="fTotal"></dd></div>
-      <div><dt>需要拼豆板</dt><dd id="fBoards"></dd></div>
       <div><dt>这块屏幕一次能显示</dt><dd id="fScreen"></dd></div>
     </dl>
-  </section>
-
-  <section class="step">
-    <h2><span class="n">步骤 2</span>你的拼豆板</h2>
-    <p class="hint">选你手上那块板每边有多少格。图案上会用粗线标出每块板的边界，大图就按粗线一块一块拼。</p>
-    <div class="row" id="boards"></div>
-    <div class="inchrow" id="boardCustom" hidden>
-      <input type="number" id="boardN" inputmode="numeric" min="8" max="120" step="1" aria-label="每边格数">
-      <span>格（每边）</span>
-    </div>
   </section>
 
   <section class="step">
@@ -174,6 +163,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 
 <div id="board" hidden>
   <div id="boardScroll"><canvas id="boardCanvas"></canvas></div>
+  <canvas id="axes" aria-hidden="true"></canvas>
   <div id="calGuide" hidden style="position:absolute;top:12px;left:12px;right:12px;z-index:5;text-align:center;background:#263044;color:#fff;padding:12px;border-radius:10px;pointer-events:none">放上板子，先对准左上角的孔，再调到右下角的孔也对准</div>
   <div id="boardBar">
     <div id="chips"></div>
@@ -223,9 +213,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   var coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
   var guess=coarse?(Math.min(screen.width,screen.height)<600?6.04:5.2):3.78;
   var stored=parseFloat(load('pd_pxmm'));
-  var BOARDS=[52,78,104];
-  var bd=parseInt(load('pd_board'),10);if(!(bd>=8&&bd<=120))bd=52;
-  var S={pxmm:stored>0?stored:guess,calibrated:stored>0,board:bd,
+  var S={pxmm:stored>0?stored:guess,calibrated:stored>0,
          pat:fromRows(SAMPLES[0].rows),solo:-1,img:null,sample:0};
 
   function pitch(){return BEAD*S.pxmm;}
@@ -233,19 +221,22 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
 
   function draw(cv,p,pt,o){
-    var w=p.cols*pt,h=p.rows*pt;
-    var s=Math.min(window.devicePixelRatio||1,Math.sqrt(4e6/(w*h)),4096/w,4096/h);
-    cv.width=Math.max(1,Math.round(w*s));cv.height=Math.max(1,Math.round(h*s));
-    cv.style.width=w+'px';cv.style.height=h+'px';
-    var c=cv.getContext('2d');c.setTransform(s,0,0,s,0,0);c.clearRect(0,0,w,h);
-    c.lineWidth=1;
+    var w=p.cols*pt,h=p.rows*pt,margin=o.labels?24:0;
+    var s=Math.min(window.devicePixelRatio||1,Math.sqrt(4e6/((w+2*margin)*(h+2*margin))),4096/(w+2*margin),4096/(h+2*margin));
+    cv.width=Math.max(1,Math.round((w+2*margin)*s));cv.height=Math.max(1,Math.round((h+2*margin)*s));
+    cv.style.width=(w+2*margin)+'px';cv.style.height=(h+2*margin)+'px';
+    var c=cv.getContext('2d');c.setTransform(s,0,0,s,0,0);c.clearRect(0,0,w+2*margin,h+2*margin);
+    if(o.labels){
+      c.fillStyle=o.grid5;c.font='10px system-ui';c.textAlign='center';c.textBaseline='middle';
+      var stride=pt>=16?1:pt>=8?5:10;
+      for(var j=0;j<p.cols;j++)if(j%stride===0||j===p.cols-1){c.fillText(j+1,margin+(j+.5)*pt,margin/2);c.fillText(j+1,margin+(j+.5)*pt,margin+h+margin/2);}
+      for(var k=0;k<p.rows;k++)if(k%stride===0||k===p.rows-1){c.fillText(k+1,margin/2,margin+(k+.5)*pt);c.fillText(k+1,margin+w+margin/2,margin+(k+.5)*pt);}
+      c.translate(margin,margin);
+    }
     var i;
-    for(i=0;i<=p.cols;i++){c.strokeStyle=i%5===0?o.grid5:o.grid;c.beginPath();c.moveTo(i*pt,0);c.lineTo(i*pt,h);c.stroke();}
-    for(i=0;i<=p.rows;i++){c.strokeStyle=i%5===0?o.grid5:o.grid;c.beginPath();c.moveTo(0,i*pt);c.lineTo(w,i*pt);c.stroke();}
-    if(o.board){c.strokeStyle=o.edge;c.lineWidth=2;
-      for(i=0;i<=p.cols;i+=o.board){c.beginPath();c.moveTo(i*pt,0);c.lineTo(i*pt,h);c.stroke();}
-      for(i=0;i<=p.rows;i+=o.board){c.beginPath();c.moveTo(0,i*pt);c.lineTo(w,i*pt);c.stroke();}
-      c.lineWidth=1;}
+    for(i=0;i<=p.cols;i++){c.lineWidth=i%10===0?2:1;c.strokeStyle=i%10===0?o.grid5:o.grid;c.beginPath();c.moveTo(i*pt,0);c.lineTo(i*pt,h);c.stroke();}
+    for(i=0;i<=p.rows;i++){c.lineWidth=i%10===0?2:1;c.strokeStyle=i%10===0?o.grid5:o.grid;c.beginPath();c.moveTo(0,i*pt);c.lineTo(w,i*pt);c.stroke();}
+    c.lineWidth=1;
     var r=pt*0.4,peg=Math.max(1,pt*0.07);
     for(var y=0;y<p.rows;y++){for(var x=0;x<p.cols;x++){
       var idx=p.cells[y*p.cols+x],cx=(x+0.5)*pt,cy=(y+0.5)*pt;
@@ -264,13 +255,10 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     var p=S.pat,box=$('preview').parentNode;
     var avail=Math.max(160,box.clientWidth-24);
     var pt=Math.max(4,Math.min(22,Math.floor(avail/p.cols)));
-    draw($('preview'),p,pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1,board:S.board,edge:cssVar('--accent')});
+    draw($('preview'),p,pt,{grid:cssVar('--line'),grid5:cssVar('--muted'),ring:cssVar('--line'),solo:-1,labels:true});
     var cs=counts(),total=0;cs.forEach(function(c){total+=c[1];});
-    $('fSize').textContent=p.cols+' × '+p.rows+' 颗';
-    $('fReal').textContent=(p.cols*BEAD/10).toFixed(1)+' × '+(p.rows*BEAD/10).toFixed(1)+' cm';
+    $('fSize').textContent=p.cols+' × '+p.rows+' 颗，实物约 '+(p.cols*BEAD/10).toFixed(1)+' × '+(p.rows*BEAD/10).toFixed(1)+' 厘米';
     $('fTotal').textContent=total+' 颗 · '+cs.length+' 色';
-    var nx=Math.ceil(p.cols/S.board),ny=Math.ceil(p.rows/S.board);
-    $('fBoards').textContent=nx*ny===1?'1 块就够':(nx+' × '+ny+' = '+nx*ny+' 块');
     $('fScreen').textContent=Math.floor(window.innerWidth/pitch())+' × '+Math.floor(window.innerHeight/pitch())+' 颗';
     var ul=$('colorList');ul.textContent='';
     cs.forEach(function(c){var li=document.createElement('li');
@@ -279,8 +267,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
       var k=document.createElement('span');k.className='cnt';k.textContent=c[1]+' 颗';
       li.appendChild(d);li.appendChild(n);li.appendChild(k);ul.appendChild(li);});
     Array.prototype.forEach.call($('samples').children,function(b,i){b.setAttribute('aria-pressed',S.sample===i);});
-    Array.prototype.forEach.call($('boards').children,function(b,i){var custom=!$('boardCustom').hidden;
-      b.setAttribute('aria-pressed',i<BOARDS.length?(!custom&&S.board===BOARDS[i]):custom);});
+
   }
 
   function quantize(){
@@ -314,15 +301,22 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     navigator.wakeLock.request('screen').then(function(w){wake=w;$('wakeMsg').textContent='屏幕会保持常亮';})
       .catch(function(){$('wakeMsg').textContent='没能开启常亮，请先把系统的自动锁屏时间调长';});
   }
-  function boardPattern(){
-    var n=S.board, cells=new Array(n*n).fill(-1);
-    for(var y=0;y<Math.min(n,S.pat.rows);y++)
-      for(var x=0;x<Math.min(n,S.pat.cols);x++) cells[y*n+x]=S.pat.cells[y*S.pat.cols+x];
-    return {cols:n,rows:n,cells:cells};
+  function renderAxes(){
+    if($('board').hidden)return;
+    var axes=$('axes'),board=$('board'),rect=board.getBoundingClientRect(),canvas=$('boardCanvas').getBoundingClientRect(),bar=$('boardBar').getBoundingClientRect();
+    var w=rect.width,h=rect.height,dpr=window.devicePixelRatio||1,pt=pitch();
+    axes.width=Math.round(w*dpr);axes.height=Math.round(h*dpr);axes.style.width=w+'px';axes.style.height=h+'px';
+    var c=axes.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
+    var left=canvas.left-rect.left,top=canvas.top-rect.top,bottom=Math.max(30,Math.min(h-24,bar.top-rect.top)),stride=pt>=16?1:pt>=8?5:10;
+    c.font='10px system-ui';c.textAlign='center';c.textBaseline='middle';c.fillStyle='rgba(22,27,37,.85)';
+    c.fillRect(0,0,w,23);c.fillRect(0,bottom-23,w,23);c.fillRect(0,0,24,bottom);c.fillRect(w-24,0,24,bottom);
+    c.fillStyle='#E9EDF5';
+    for(var x=0;x<S.pat.cols;x++){var xx=left+(x+.5)*pt;if((x%stride===0||x===S.pat.cols-1)&&xx>=28&&xx<=w-28){c.fillText(x+1,xx,12);c.fillText(x+1,xx,bottom-12);}}
+    for(var y=0;y<S.pat.rows;y++){var yy=top+(y+.5)*pt;if((y%stride===0||y===S.pat.rows-1)&&yy>=27&&yy<=bottom-27){c.fillText(y+1,12,yy);c.fillText(y+1,w-12,yy);}}
   }
   function renderBoard(){
     $('pxValue').textContent='1 mm = '+S.pxmm.toFixed(3)+' 像素';
-    draw($('boardCanvas'),boardPattern(),pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo,board:S.board,edge:'#FF6B97'});
+    draw($('boardCanvas'),S.pat,pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo});renderAxes();
     var box=$('chips');box.textContent='';
     function chip(label,idx,cnt){var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',S.solo===idx);
       if(idx>=0){var d=document.createElement('span');d.className='dot';d.style.background=PAL[idx].hex;b.appendChild(d);}
@@ -345,10 +339,9 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   function setLocked(on){
     locked=on;gesture=null;
     $('lockLayer').hidden=!on;$('boardBar').hidden=false;$('board').classList.toggle('locked',on);
-    $('boardScroll').style.overflow=on?'hidden':'auto';
+    $('boardScroll').style.overflow=on?'hidden':'auto';renderAxes();
   }
   $('enter').addEventListener('click',function(){
-    if(S.pat.cols>S.board||S.pat.rows>S.board){alert('图案超出所选板子，请选择更大的板子或调整图案大小。');return;}
     S.solo=-1;$('board').hidden=false;document.body.style.overflow='hidden';setLocked(false);calibrationMode(!S.calibrated);renderBoard();askWake();
   });
   $('exitBtn').addEventListener('click',function(){
@@ -362,7 +355,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   var bs=$('boardScroll'),layer=$('lockLayer'),gesture=null,locked=false;
   function midpoint(e){return {x:(e.touches[0].clientX+e.touches[1].clientX)/2,y:(e.touches[0].clientY+e.touches[1].clientY)/2};}
   function tdist(e){var a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
-  function sizeCanvas(){var cv=$('boardCanvas');cv.style.width=(S.board*pitch())+'px';cv.style.height=(S.board*pitch())+'px';}
+  function sizeCanvas(){var cv=$('boardCanvas');cv.style.width=(S.pat.cols*pitch())+'px';cv.style.height=(S.pat.rows*pitch())+'px';renderAxes();}
   function snapAxis(start,current,max,step){
     var lo=Math.ceil((0-start)/step),hi=Math.floor((max-start)/step);
     return start+Math.max(lo,Math.min(hi,Math.round((current-start)/step)))*step;
@@ -398,6 +391,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     if(gesture){if(gesture.mode==='scale')renderBoard();else snap(gesture);gesture=null;}
     /* Remaining fingers must lift before a new gesture starts. */
   }
+  bs.addEventListener('scroll',renderAxes);
   [bs,layer].forEach(function(el){el.addEventListener('touchstart',startGesture,{passive:false});el.addEventListener('touchmove',moveGesture,{passive:false});el.addEventListener('touchend',endGesture,{passive:false});el.addEventListener('touchcancel',endGesture,{passive:false});});
   ['gesturestart','gesturechange','gestureend'].forEach(function(ev){$('board').addEventListener(ev,function(e){e.preventDefault();});});
   function nudge(d){if(!calibrating)return;S.pxmm=Math.max(3,Math.min(30,S.pxmm+d));renderBoard();}
@@ -416,16 +410,6 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     b.addEventListener('click',function(){S.pat=fromRows(s.rows);S.sample=i;S.solo=-1;
       $('uploadOpts').hidden=true;$('fileName').textContent='';renderSetup();});
     $('samples').appendChild(b);});
-  function setBoard(n){S.board=n;save('pd_board',String(n));renderSetup();}
-  BOARDS.forEach(function(n){var b=document.createElement('button');b.type='button';
-    b.textContent=n+' × '+n+' 格 · 约 '+(n*BEAD/10).toFixed(1)+' cm';
-    b.addEventListener('click',function(){$('boardCustom').hidden=true;setBoard(n);});$('boards').appendChild(b);});
-  var ob=document.createElement('button');ob.type='button';ob.textContent='其他规格';
-  ob.addEventListener('click',function(){$('boardCustom').hidden=false;$('boardN').value=S.board;renderSetup();});
-  $('boards').appendChild(ob);
-  $('boardN').addEventListener('change',function(e){var v=parseInt(e.target.value,10);if(v>=8&&v<=120)setBoard(v);});
-  if(BOARDS.indexOf(S.board)<0){$('boardCustom').hidden=false;$('boardN').value=S.board;}
-  $('fitBoard').addEventListener('click',function(){$('beadsWide').value=Math.min(104,S.board);quantize();});
   $('file').addEventListener('change',function(e){
     var f=e.target.files&&e.target.files[0];if(!f)return;
     var rd=new FileReader();
@@ -438,7 +422,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
   $('beadsWide').addEventListener('input',quantize);
   $('maxColors').addEventListener('input',quantize);
   $('dropWhite').addEventListener('change',quantize);
-  window.addEventListener('resize',function(){if($('board').hidden)renderSetup();});
+  window.addEventListener('resize',function(){if($('board').hidden)renderSetup();else renderAxes();});
   if(window.matchMedia){var mq=matchMedia('(prefers-color-scheme: dark)');
     if(mq.addEventListener)mq.addEventListener('change',renderSetup);}
   new MutationObserver(renderSetup).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
