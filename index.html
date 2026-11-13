@@ -85,7 +85,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 /* 底板模式：固定全屏，永远暗色 */
 #board{position:fixed;inset:0;z-index:50;touch-action:pan-x pan-y;background:var(--board-bg);color:var(--board-ink);
   user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-#boardScroll{position:absolute;inset:0;overflow:auto;display:flex;padding:28px 28px 120px;-webkit-overflow-scrolling:touch}
+#boardScroll{position:absolute;inset:0;overflow:auto;display:flex;padding:28px 28px 120px;touch-action:none;-webkit-overflow-scrolling:auto}
 #boardCanvas{margin:auto;flex:none;display:block}
 #boardBar{position:absolute;left:0;right:0;bottom:0;background:var(--board-panel);border-top:1px solid var(--board-line);
   padding:10px max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
@@ -96,7 +96,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 #board .dot{border-color:var(--board-line)}
 #board #chips button{font-family:var(--font-data)}
 #board .cnt{font-family:var(--font-data);opacity:.7;font-size:12px}
-.barrow{display:flex;gap:8px;align-items:center}
+.barrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .barrow .msg{flex:1;min-width:0;font-size:12px;opacity:.75;line-height:1.4}
 #board .nudge{width:38px;padding:0;justify-content:center;font-family:var(--font-data);font-size:18px}
 #lockBtn{background:var(--board-ink);color:var(--board-bg);border-color:var(--board-ink);font-weight:700}
@@ -175,12 +175,13 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
 
 <div id="board" hidden>
   <div id="boardScroll"><canvas id="boardCanvas"></canvas></div>
-  <div id="calGuide" hidden style="position:absolute;top:12px;left:12px;right:12px;z-index:5;text-align:center;background:#263044;color:#fff;padding:12px;border-radius:10px;pointer-events:none">把板子放上来，双指捏合到圆点对准孔位</div>
+  <div id="calGuide" hidden style="position:absolute;top:12px;left:12px;right:12px;z-index:5;text-align:center;background:#263044;color:#fff;padding:12px;border-radius:10px;pointer-events:none">放上板子，先对准左上角的孔，再调到右下角的孔也对准</div>
   <div id="boardBar">
     <div id="chips"></div>
     <div class="barrow">
       <button type="button" id="exitBtn">退出</button>
-      <span class="msg"><span id="wakeMsg"></span><br>双指捏合或 − + 调大小</span>
+      <span class="msg"><span id="wakeMsg"></span><br><span id="pxValue"></span><br>双指捏合或 − + 调大小</span>
+      <button type="button" id="calibrateBtn">重新校准</button>
       <button type="button" class="nudge" id="bMinus" aria-label="圆点缩小一点">−</button>
       <button type="button" class="nudge" id="bPlus" aria-label="圆点放大一点">+</button>
       <button type="button" id="lockBtn">锁定屏幕</button>
@@ -324,6 +325,7 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     return {cols:n,rows:n,cells:cells};
   }
   function renderBoard(){
+    $('pxValue').textContent='1 mm = '+S.pxmm.toFixed(3)+' 像素';
     draw($('boardCanvas'),boardPattern(),pitch(),{grid:'#1A202B',grid5:'#3A4558',ring:'rgba(255,255,255,.4)',solo:S.solo,board:S.board,edge:'#FF6B97'});
     var box=$('chips');box.textContent='';
     function chip(label,idx,cnt){var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',S.solo===idx);
@@ -334,41 +336,79 @@ ul.colors .cnt{font-family:var(--font-data);font-variant-numeric:tabular-nums;co
     chip('全部颜色',-1,'');
     counts().forEach(function(c){chip(code(c[0]),c[0],c[1]);});
   }
+  var calibrating=false, savedPx=S.pxmm;
+  function calibrationMode(on){
+    calibrating=on;$('calGuide').hidden=!on;
+    $('calibrateBtn').textContent=on?'完成':'重新校准';
+    $('bMinus').disabled=!on;$('bPlus').disabled=!on;$('lockBtn').disabled=on;
+  }
+  $('calibrateBtn').addEventListener('click',function(){
+    if(calibrating){S.pxmm=Number(S.pxmm.toFixed(3));save('pd_pxmm',String(S.pxmm));savedPx=S.pxmm;S.calibrated=true;calibrationMode(false);renderBoard();}
+    else {savedPx=S.pxmm;calibrationMode(true);}
+  });
   function setLocked(on){
+    locked=on;gesture=null;
     $('lockLayer').hidden=!on;$('boardBar').hidden=false;$('board').classList.toggle('locked',on);
     $('boardScroll').style.overflow=on?'hidden':'auto';
   }
   $('enter').addEventListener('click',function(){
     if(S.pat.cols>S.board||S.pat.rows>S.board){alert('图案超出所选板子，请选择更大的板子或调整图案大小。');return;}
-    S.solo=-1;$('board').hidden=false;$('calGuide').hidden=S.calibrated;document.body.style.overflow='hidden';setLocked(false);renderBoard();askWake();
+    S.solo=-1;$('board').hidden=false;document.body.style.overflow='hidden';setLocked(false);calibrationMode(!S.calibrated);renderBoard();askWake();
   });
   $('exitBtn').addEventListener('click',function(){
+    if(calibrating){S.pxmm=savedPx;calibrationMode(false);}
     $('board').hidden=true;document.body.style.overflow='';
     if(wake){try{wake.release();}catch(e){}wake=null;}
     renderSetup();
   });
   $('lockBtn').addEventListener('click',function(){setLocked(true);});
-  /* 底板模式里不让浏览器整页缩放，双指捏合改为直接调整圆点大小（也就是校准值） */
-  var bs=$('boardScroll'),pinch=null;
+  /* 手动控制平移，松手时按每次手势的起点吸附到整格。 */
+  var bs=$('boardScroll'),layer=$('lockLayer'),gesture=null,locked=false;
+  function midpoint(e){return {x:(e.touches[0].clientX+e.touches[1].clientX)/2,y:(e.touches[0].clientY+e.touches[1].clientY)/2};}
   function tdist(e){var a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
   function sizeCanvas(){var cv=$('boardCanvas');cv.style.width=(S.board*pitch())+'px';cv.style.height=(S.board*pitch())+'px';}
-  function keepSize(){S.calibrated=true;$('calGuide').hidden=true;save('pd_pxmm',S.pxmm.toFixed(3));renderBoard();$('wakeMsg').textContent='大小已记住';}
-  bs.addEventListener('touchstart',function(e){if(e.touches.length===2)pinch={d:tdist(e)||1,px:S.pxmm};},{passive:true});
-  bs.addEventListener('touchmove',function(e){
-    if(!pinch||e.touches.length!==2)return;
+  function snapAxis(start,current,max,step){
+    var lo=Math.ceil((0-start)/step),hi=Math.floor((max-start)/step);
+    return start+Math.max(lo,Math.min(hi,Math.round((current-start)/step)))*step;
+  }
+  function snap(g){if(!g||g.mode!=='pan')return;
+    bs.scrollLeft=snapAxis(g.left,bs.scrollLeft,Math.max(0,bs.scrollWidth-bs.clientWidth),g.step);
+    bs.scrollTop=snapAxis(g.top,bs.scrollTop,Math.max(0,bs.scrollHeight-bs.clientHeight),g.step);
+  }
+  function startGesture(e){
+    if(e.target.closest&&e.target.closest('#unlockBtn'))return;
     if(e.cancelable)e.preventDefault();
-    S.pxmm=Math.max(3,Math.min(30,pinch.px*tdist(e)/pinch.d));sizeCanvas();
-  },{passive:false});
-  function endPinch(e){if(!pinch||e.touches.length>=2)return;pinch=null;keepSize();}
-  bs.addEventListener('touchend',endPinch);bs.addEventListener('touchcancel',endPinch);
+    if(gesture)snap(gesture);gesture=null;
+    var count=e.touches.length;
+    if(count===2&&calibrating&&!locked){gesture={mode:'scale',distance:tdist(e)||1,px:S.pxmm};return;}
+    if((locked&&count===2)||(!locked&&(count===1||count===2))){
+      var point=count===2?midpoint(e):{x:e.touches[0].clientX,y:e.touches[0].clientY};
+      gesture={mode:'pan',count:count,x:point.x,y:point.y,left:bs.scrollLeft,top:bs.scrollTop,step:pitch()};
+    }
+  }
+  function moveGesture(e){
+    if(e.target.closest&&e.target.closest('#unlockBtn'))return;
+    if(e.cancelable)e.preventDefault();
+    if(!gesture)return;
+    if(gesture.mode==='scale'&&e.touches.length===2){S.pxmm=Math.max(3,Math.min(30,gesture.px*tdist(e)/gesture.distance));sizeCanvas();}
+    else if(gesture.mode==='pan'&&e.touches.length===gesture.count){
+      var point=gesture.count===2?midpoint(e):{x:e.touches[0].clientX,y:e.touches[0].clientY};
+      bs.scrollLeft=gesture.left+gesture.x-point.x;bs.scrollTop=gesture.top+gesture.y-point.y;
+    }
+  }
+  function endGesture(e){
+    if(e.target.closest&&e.target.closest('#unlockBtn'))return;
+    if(e.cancelable)e.preventDefault();
+    if(gesture){if(gesture.mode==='scale')renderBoard();else snap(gesture);gesture=null;}
+    /* Remaining fingers must lift before a new gesture starts. */
+  }
+  [bs,layer].forEach(function(el){el.addEventListener('touchstart',startGesture,{passive:false});el.addEventListener('touchmove',moveGesture,{passive:false});el.addEventListener('touchend',endGesture,{passive:false});el.addEventListener('touchcancel',endGesture,{passive:false});});
   ['gesturestart','gesturechange','gestureend'].forEach(function(ev){$('board').addEventListener(ev,function(e){e.preventDefault();});});
-  function nudge(d){S.pxmm=Math.max(3,Math.min(30,S.pxmm+d));keepSize();}
+  function nudge(d){if(!calibrating)return;S.pxmm=Math.max(3,Math.min(30,S.pxmm+d));renderBoard();}
   $('bMinus').addEventListener('click',function(){nudge(-0.01);});
   $('bPlus').addEventListener('click',function(){nudge(0.01);});
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&!$('board').hidden)askWake();});
-  var layer=$('lockLayer');
-  ['touchstart','touchmove','wheel'].forEach(function(ev){layer.addEventListener(ev,function(e){
-    if(e.target.closest&&e.target.closest('#unlockBtn')&&ev==='touchstart')return;e.preventDefault();},{passive:false});});
+  layer.addEventListener('wheel',function(e){e.preventDefault();},{passive:false});
   layer.addEventListener('contextmenu',function(e){e.preventDefault();});
   var ub=$('unlockBtn'),timer=null;
   function cancelHold(){clearTimeout(timer);timer=null;ub.classList.remove('holding');}
